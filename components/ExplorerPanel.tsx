@@ -1,7 +1,7 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import type { ProcessStep, UploadedFile, PlanItem, CodeLanguage } from '../types';
-import { CobolIcon, JavaIcon, UploadCloudIcon, CheckCircle, BrainCircuit, FileCode, Hammer, PartyPopper, ChevronDown, ChevronRight, ClipboardList } from './icons/Icons';
+import { CobolIcon, JavaIcon, UploadCloudIcon, CheckCircle, BrainCircuit, FileCode, Hammer, PartyPopper, ChevronDown, ChevronRight, ClipboardList, DownloadIcon } from './icons/Icons';
+import JSZip from 'jszip';
 
 interface ExplorerPanelProps {
   currentStep: ProcessStep;
@@ -52,7 +52,7 @@ const ProcessStepper: React.FC<{ currentStep: ProcessStep }> = ({ currentStep })
   );
 };
 
-const FileExplorer: React.FC<{ files: UploadedFile[], activeFile: UploadedFile | null, onFileSelect: (file: UploadedFile) => void }> = ({ files, activeFile, onFileSelect }) => {
+const FileExplorer: React.FC<{ files: UploadedFile[], activeFile: UploadedFile | null, onFileSelect: (file: UploadedFile) => void, currentStep: ProcessStep }> = ({ files, activeFile, onFileSelect, currentStep }) => {
     const [expanded, setExpanded] = useState<Record<CodeLanguage, boolean>>({ cobol: true, java: true });
     
     const toggleLanguage = (lang: CodeLanguage) => {
@@ -62,9 +62,40 @@ const FileExplorer: React.FC<{ files: UploadedFile[], activeFile: UploadedFile |
     const cobolFiles = files.filter(f => f.language === 'cobol');
     const javaFiles = files.filter(f => f.language === 'java');
 
+    const handleDownload = () => {
+        if (javaFiles.length === 0) return;
+        
+        const zip = new JSZip();
+        javaFiles.forEach(file => {
+            zip.file(file.name, file.content);
+        });
+
+        zip.generateAsync({ type: 'blob' }).then(content => {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = 'modernized-java-code.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        });
+    };
+
     return (
         <div className="p-4 space-y-2">
-            <h3 className="text-lg font-semibold text-white">Code Explorer</h3>
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-semibold text-white">Code Explorer</h3>
+                {currentStep === 'done' && javaFiles.length > 0 && (
+                    <button
+                        onClick={handleDownload}
+                        className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 hover:text-white transition-colors"
+                        title="Download Java files as .zip"
+                    >
+                        <DownloadIcon className="w-4 h-4" />
+                        <span>Download .zip</span>
+                    </button>
+                )}
+            </div>
             {cobolFiles.length > 0 && (
                 <div>
                     <button onClick={() => toggleLanguage('cobol')} className="flex items-center gap-2 w-full text-left font-semibold text-gray-400 hover:text-white">
@@ -218,7 +249,7 @@ export default function ExplorerPanel(props: ExplorerPanelProps) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 flex-1 min-h-0">
             <div className="md:col-span-1 md:border-r border-gray-800 overflow-y-auto">
-                <FileExplorer files={props.files} activeFile={props.activeFile} onFileSelect={props.onFileSelect}/>
+                <FileExplorer files={props.files} activeFile={props.activeFile} onFileSelect={props.onFileSelect} currentStep={props.currentStep}/>
             </div>
             <div className="md:col-span-2 flex flex-col min-h-0">
                 {/* Tabs */}
