@@ -1,9 +1,15 @@
 
 import { useState, useCallback } from 'react';
-import type { ProcessStep, ChatMessage, UploadedFile, PlanItem } from '../types';
-import { analyzeCobolCode, createModernizationPlan, convertCobolToJava, getChatResponse } from '../services/geminiService';
+import type { ProcessStep, ChatMessage, UploadedFile, PlanItem, AIProvider } from '../types';
+import * as geminiService from '../services/geminiService';
+import * as azureOpenAIService from '../services/azureOpenAIService';
 
-export const useModernization = () => {
+const services = {
+  gemini: geminiService,
+  azure: azureOpenAIService,
+};
+
+export const useModernization = (provider: AIProvider) => {
   const [currentStep, setCurrentStep] = useState<ProcessStep>('upload');
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: '1', sender: 'ai', text: 'Hello! I am your COBOL modernization assistant. Please upload your COBOL files to begin.' }
@@ -13,6 +19,8 @@ export const useModernization = () => {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const api = services[provider];
 
   const addMessage = (message: Omit<ChatMessage, 'id'>) => {
     setMessages(prev => [...prev, { ...message, id: Date.now().toString() }]);
@@ -38,7 +46,7 @@ export const useModernization = () => {
       setCurrentStep('analyze');
       
       try {
-        const analysisResult = await analyzeCobolCode(newFiles);
+        const analysisResult = await api.analyzeCobolCode(newFiles);
         setAnalysis(analysisResult);
         addMessage({ sender: 'ai', analysis: analysisResult });
         addMessage({ sender: 'ai', text: 'Analysis complete. Next, I will generate a modernization plan.' });
@@ -52,7 +60,7 @@ export const useModernization = () => {
       addMessage({ sender: 'ai', text: 'No valid COBOL files (.cbl, .cob) were found. Please try again.' });
     }
     setIsLoading(false);
-  }, []);
+  }, [api]);
   
   const generatePlan = useCallback(async () => {
     if (!analysis) return;
@@ -60,7 +68,7 @@ export const useModernization = () => {
     addMessage({ sender: 'user', text: 'Generate the modernization plan.' });
     addMessage({ sender: 'ai', text: 'Creating a modernization plan based on the analysis...' });
     try {
-      const planResult = await createModernizationPlan(analysis);
+      const planResult = await api.createModernizationPlan(analysis);
       setPlan(planResult);
       addMessage({ sender: 'ai', plan: planResult });
       addMessage({ sender: 'ai', text: 'Modernization plan created. Ready to transform the code to Java.' });
@@ -70,7 +78,7 @@ export const useModernization = () => {
       addMessage({ sender: 'ai', text: `An error occurred while creating the plan: ${err.message}` });
     }
     setIsLoading(false);
-  }, [analysis]);
+  }, [analysis, api]);
   
   const transformCode = useCallback(async () => {
     const cobolFiles = files.filter(f => f.language === 'cobol');
@@ -79,7 +87,7 @@ export const useModernization = () => {
     addMessage({ sender: 'user', text: 'Transform the code to Java.' });
     addMessage({ sender: 'ai', text: 'Transforming COBOL to Java. This is the final step and may take some time.' });
     try {
-      const javaFiles = await convertCobolToJava(cobolFiles, plan);
+      const javaFiles = await api.convertCobolToJava(cobolFiles, plan);
       setFiles(prev => [...prev, ...javaFiles]);
       setActiveFile(javaFiles[0] || null);
       addMessage({ sender: 'ai', text: 'Transformation complete! You can now view the generated Java files.'});
@@ -89,7 +97,7 @@ export const useModernization = () => {
       addMessage({ sender: 'ai', text: `An error occurred during transformation: ${err.message}` });
     }
     setIsLoading(false);
-  }, [files, plan]);
+  }, [files, plan, api]);
 
   const triggerNextStep = useCallback(() => {
     if (currentStep === 'plan') generatePlan();
@@ -100,14 +108,14 @@ export const useModernization = () => {
     addMessage({ sender: 'user', text });
     setIsLoading(true);
     try {
-        const response = await getChatResponse(text);
+        const response = await api.getChatResponse(text);
         addMessage({ sender: 'ai', text: response });
     } catch (e) {
         const err = e as Error;
         addMessage({ sender: 'ai', text: `Sorry, I encountered an error: ${err.message}` });
     }
     setIsLoading(false);
-  }, []);
+  }, [api]);
   
   const resetProcess = useCallback(() => {
     setCurrentStep('upload');

@@ -1,5 +1,6 @@
 
 export type ProcessStep = 'upload' | 'analyze' | 'plan' | 'transform' | 'done';
+export type AIProvider = 'gemini' | 'azure';
 
 export interface PlanItem {
   title: string;
