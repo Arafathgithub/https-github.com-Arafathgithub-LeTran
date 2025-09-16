@@ -1,0 +1,5 @@
+{
+  "name": "COBOL to Java Modernization Assistant",
+  "description": "An AI-powered chat application to modernize legacy COBOL code into modern Java. It provides a guided, step-by-step process for analyzing, planning, and transforming codebases.",
+  "requestFramePermissions": []
+}
